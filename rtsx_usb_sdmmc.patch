@@ -1,0 +1,149 @@
+diff --git a/drivers/mmc/host/rtsx_usb_sdmmc.c b/drivers/mmc/host/rtsx_usb_sdmmc.c
+index a442885..4ddd44b 100644
+--- a/drivers/mmc/host/rtsx_usb_sdmmc.c
++++ b/drivers/mmc/host/rtsx_usb_sdmmc.c
+@@ -902,7 +902,7 @@ finish:
+ 	host->mrq = NULL;
+ 	mutex_unlock(&host->host_mutex);
+ 
+-	mmc_request_done(mmc, mrq);
++	mmc_request_done_dup(mmc, mrq);
+ }
+ 
+ static int sd_set_bus_width(struct rtsx_usb_sdmmc *host,
+@@ -1370,7 +1370,7 @@ static int rtsx_usb_sdmmc_drv_probe(struct platform_device *pdev)
+ 
+ 	dev_dbg(&(pdev->dev), ": Realtek USB SD/MMC controller found\n");
+ 
+-	mmc = mmc_alloc_host(sizeof(*host), &pdev->dev);
++	mmc = mmc_alloc_host_dup(sizeof(*host), &pdev->dev);
+ 	if (!mmc)
+ 		return -ENOMEM;
+ 
+@@ -1399,7 +1399,7 @@ static int rtsx_usb_sdmmc_drv_probe(struct platform_device *pdev)
+ 	INIT_WORK(&host->led_work, rtsx_usb_update_led);
+ 
+ #endif
+-	mmc_add_host(mmc);
++	mmc_add_host_dup(mmc);
+ 
+ 	return 0;
+ }
+@@ -1423,18 +1423,18 @@ static int rtsx_usb_sdmmc_drv_remove(struct platform_device *pdev)
+ 		host->mrq->cmd->error = -ENOMEDIUM;
+ 		if (host->mrq->stop)
+ 			host->mrq->stop->error = -ENOMEDIUM;
+-		mmc_request_done(mmc, host->mrq);
++		mmc_request_done_dup(mmc, host->mrq);
+ 	}
+ 	mutex_unlock(&host->host_mutex);
+ 
+-	mmc_remove_host(mmc);
++	mmc_remove_host_dup(mmc);
+ 
+ #ifdef RTSX_USB_USE_LEDS_CLASS
+ 	cancel_work_sync(&host->led_work);
+ 	led_classdev_unregister(&host->led);
+ #endif
+ 
+-	mmc_free_host(mmc);
++	mmc_free_host_dup(mmc);
+ 	pm_runtime_disable(&pdev->dev);
+ 	platform_set_drvdata(pdev, NULL);
+ 
+diff --git a/include/linux/mmc/host.h b/include/linux/mmc/host.h
+index 0cd9ee7..65f2e61 100644
+--- a/include/linux/mmc/host.h
++++ b/include/linux/mmc/host.h
+@@ -92,12 +92,12 @@ struct mmc_host_ops {
+ 	 *
+ 	 * In the case where a host function (like set_ios) may be called
+ 	 * with or without the host claimed, enabling and disabling can be
+-	 * done directly and will nest correctly. Call 'mmc_host_enable()' and
+-	 * 'mmc_host_lazy_disable()' for this purpose, but note that these
++	 * done directly and will nest correctly. Call 'mmc_host_enable_dup()' and
++	 * 'mmc_host_lazy_disable_dup()' for this purpose, but note that these
+ 	 * functions must be paired.
+ 	 *
+-	 * Alternatively, 'mmc_host_enable()' may be paired with
+-	 * 'mmc_host_disable()' which calls 'disable' immediately.  In this
++	 * Alternatively, 'mmc_host_enable_dup()' may be paired with
++	 * 'mmc_host_disable_dup()' which calls 'disable' immediately.  In this
+ 	 * case the 'disable' method will be called with 'lazy' set to 0.
+ 	 * This is mainly useful for error paths.
+ 	 *
+@@ -264,10 +264,10 @@ struct mmc_host {
+ 	unsigned long		private[0] ____cacheline_aligned;
+ };
+ 
+-extern struct mmc_host *mmc_alloc_host(int extra, struct device *);
+-extern int mmc_add_host(struct mmc_host *);
+-extern void mmc_remove_host(struct mmc_host *);
+-extern void mmc_free_host(struct mmc_host *);
++extern struct mmc_host *mmc_alloc_host_dup(int extra, struct device *);
++extern int mmc_add_host_dup(struct mmc_host *);
++extern void mmc_remove_host_dup(struct mmc_host *);
++extern void mmc_free_host_dup(struct mmc_host *);
+ 
+ static inline void *mmc_priv(struct mmc_host *host)
+ {
+@@ -280,14 +280,14 @@ static inline void *mmc_priv(struct mmc_host *host)
+ #define mmc_classdev(x)	(&(x)->class_dev)
+ #define mmc_hostname(x)	(dev_name(&(x)->class_dev))
+ 
+-extern int mmc_suspend_host(struct mmc_host *, pm_message_t);
+-extern int mmc_resume_host(struct mmc_host *);
++extern int mmc_suspend_host_dup(struct mmc_host *, pm_message_t);
++extern int mmc_resume_host_dup(struct mmc_host *);
+ 
+-extern int mmc_power_save_host(struct mmc_host *host);
+-extern int mmc_power_restore_host(struct mmc_host *host);
++extern int mmc_power_save_host_dup(struct mmc_host *host);
++extern int mmc_power_restore_host_dup(struct mmc_host *host);
+ 
+-extern void mmc_detect_change(struct mmc_host *, unsigned long delay);
+-extern void mmc_request_done(struct mmc_host *, struct mmc_request *);
++extern void mmc_detect_change_dup(struct mmc_host *, unsigned long delay);
++extern void mmc_request_done_dup(struct mmc_host *, struct mmc_request *);
+ 
+ static inline void mmc_signal_sdio_irq(struct mmc_host *host)
+ {
+@@ -297,16 +297,16 @@ static inline void mmc_signal_sdio_irq(struct mmc_host *host)
+ 
+ struct regulator;
+ 
+-int mmc_regulator_get_ocrmask(struct regulator *supply);
+-int mmc_regulator_set_ocr(struct regulator *supply, unsigned short vdd_bit);
++int mmc_regulator_get_ocrmask_dup(struct regulator *supply);
++int mmc_regulator_set_ocr_dup(struct regulator *supply, unsigned short vdd_bit);
+ 
+-int mmc_card_awake(struct mmc_host *host);
+-int mmc_card_sleep(struct mmc_host *host);
+-int mmc_card_can_sleep(struct mmc_host *host);
++int mmc_card_awake_dup(struct mmc_host *host);
++int mmc_card_sleep_dup(struct mmc_host *host);
++int mmc_card_can_sleep_dup(struct mmc_host *host);
+ 
+-int mmc_host_enable(struct mmc_host *host);
+-int mmc_host_disable(struct mmc_host *host);
+-int mmc_host_lazy_disable(struct mmc_host *host);
++int mmc_host_enable_dup(struct mmc_host *host);
++int mmc_host_disable_dup(struct mmc_host *host);
++int mmc_host_lazy_disable_dup(struct mmc_host *host);
+ int mmc_pm_notify(struct notifier_block *notify_block, unsigned long, void *);
+ 
+ static inline void mmc_set_disable_delay(struct mmc_host *host,
+@@ -316,11 +316,11 @@ static inline void mmc_set_disable_delay(struct mmc_host *host,
+ }
+ 
+ /* Module parameter */
+-extern int mmc_assume_removable;
++extern int mmc_assume_removable_dup;
+ 
+ static inline int mmc_card_is_removable(struct mmc_host *host)
+ {
+-	return !(host->caps & MMC_CAP_NONREMOVABLE) && mmc_assume_removable;
++	return !(host->caps & MMC_CAP_NONREMOVABLE) && mmc_assume_removable_dup;
+ }
+ 
+ #endif
